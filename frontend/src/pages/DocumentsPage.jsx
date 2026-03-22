@@ -295,7 +295,7 @@ export default function DocumentsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-[#495057] mb-1 font-ibm">{t('document.doc_type')}</label>
-                <select className="ndm-input" value={createForm.doc_type_id} onChange={e => setCreateForm({ ...createForm, doc_type_id: e.target.value })}>
+                <select data-testid="doc-type-select" className="ndm-input" value={createForm.doc_type_id} onChange={e => setCreateForm({ ...createForm, doc_type_id: e.target.value })}>
                   <option value="">—</option>
                   {docTypes.map(dt => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
                 </select>
@@ -303,7 +303,7 @@ export default function DocumentsPage() {
               <div>
                 <label className="block text-xs font-medium text-[#495057] mb-1 font-ibm">{t('document.phase')}</label>
                 {phases.length > 0 ? (
-                  <select className="ndm-input" value={createForm.phase} onChange={e => setCreateForm({ ...createForm, phase: e.target.value })}>
+                  <select data-testid="doc-phase-select" className="ndm-input" value={createForm.phase} onChange={e => setCreateForm({ ...createForm, phase: e.target.value })}>
                     <option value="">—</option>
                     {phases.map(ph => <option key={ph} value={ph}>{ph}</option>)}
                   </select>

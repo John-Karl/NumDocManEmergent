@@ -126,14 +126,14 @@ async def create_org(data: OrgCreate, db: AsyncSession = Depends(get_db), curren
 @router.get("/organizations/{org_id}")
 async def get_org(org_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     org = await _get_org_or_404(org_id, db)
-    await _check_org_member(org_id, current_user.id, db)
+    await _check_org_member(org_id, current_user.id, db, current_user)
     return _org_dict(org)
 
 
 @router.put("/organizations/{org_id}")
 async def update_org(org_id: str, data: OrgUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     org = await _get_org_or_404(org_id, db)
-    await _check_org_admin(org_id, current_user.id, db)
+    await _check_org_admin(org_id, current_user.id, db, current_user)
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(org, k, v)
     await db.commit()
@@ -143,7 +143,7 @@ async def update_org(org_id: str, data: OrgUpdate, db: AsyncSession = Depends(ge
 
 @router.get("/organizations/{org_id}/members")
 async def list_org_members(org_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_org_member(org_id, current_user.id, db)
+    await _check_org_member(org_id, current_user.id, db, current_user)
     result = await db.execute(
         select(OrgMember, User).join(User, User.id == OrgMember.user_id).where(OrgMember.org_id == org_id)
     )
@@ -155,14 +155,14 @@ async def list_org_members(org_id: str, db: AsyncSession = Depends(get_db), curr
 
 @router.get("/organizations/{org_id}/roles")
 async def list_roles(org_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_org_member(org_id, current_user.id, db)
+    await _check_org_member(org_id, current_user.id, db, current_user)
     result = await db.execute(select(Role).where(Role.org_id == org_id))
     return [_role_dict(r) for r in result.scalars().all()]
 
 
 @router.post("/organizations/{org_id}/roles", status_code=201)
 async def create_role(org_id: str, data: RoleCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_org_admin(org_id, current_user.id, db)
+    await _check_org_admin(org_id, current_user.id, db, current_user)
     role = Role(**data.model_dump(), org_id=org_id)
     db.add(role)
     await db.commit()
@@ -172,7 +172,7 @@ async def create_role(org_id: str, data: RoleCreate, db: AsyncSession = Depends(
 
 @router.put("/organizations/{org_id}/roles/{role_id}")
 async def update_role(org_id: str, role_id: str, data: RoleCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_org_admin(org_id, current_user.id, db)
+    await _check_org_admin(org_id, current_user.id, db, current_user)
     result = await db.execute(select(Role).where(Role.id == role_id, Role.org_id == org_id))
     role = result.scalar_one_or_none()
     if not role:
@@ -186,7 +186,7 @@ async def update_role(org_id: str, role_id: str, data: RoleCreate, db: AsyncSess
 
 @router.delete("/organizations/{org_id}/roles/{role_id}", status_code=204)
 async def delete_role(org_id: str, role_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_org_admin(org_id, current_user.id, db)
+    await _check_org_admin(org_id, current_user.id, db, current_user)
     result = await db.execute(select(Role).where(Role.id == role_id, Role.org_id == org_id))
     role = result.scalar_one_or_none()
     if not role:
@@ -231,7 +231,7 @@ async def list_projects(
 
 @router.post("/projects", status_code=201)
 async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_org_member(data.org_id, current_user.id, db)
+    await _check_org_member(data.org_id, current_user.id, db, current_user)
 
     result = await db.execute(select(Project).where(Project.org_id == data.org_id, Project.code == data.code))
     if result.scalar_one_or_none():
@@ -291,7 +291,7 @@ async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_db)
 @router.get("/projects/{project_id}")
 async def get_project(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project = await _get_project_or_404(project_id, db)
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     d = _project_dict(project)
 
     # Enrich with org info
@@ -306,7 +306,7 @@ async def get_project(project_id: str, db: AsyncSession = Depends(get_db), curre
 @router.put("/projects/{project_id}")
 async def update_project(project_id: str, data: ProjectUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project = await _get_project_or_404(project_id, db)
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(project, k, v)
     await db.commit()
@@ -317,14 +317,14 @@ async def update_project(project_id: str, data: ProjectUpdate, db: AsyncSession 
 @router.delete("/projects/{project_id}", status_code=204)
 async def delete_project(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project = await _get_project_or_404(project_id, db)
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     await db.delete(project)
     await db.commit()
 
 
 @router.get("/projects/{project_id}/members")
 async def list_project_members(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(
         select(ProjectMember, User).join(User, User.id == ProjectMember.user_id).where(ProjectMember.project_id == project_id)
     )
@@ -334,7 +334,7 @@ async def list_project_members(project_id: str, db: AsyncSession = Depends(get_d
 
 @router.post("/projects/{project_id}/members", status_code=201)
 async def add_project_member(project_id: str, data: MemberAdd, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     member = ProjectMember(project_id=project_id, user_id=data.user_id, role_code=data.role_code)
     db.add(member)
     await db.commit()
@@ -345,14 +345,14 @@ async def add_project_member(project_id: str, data: MemberAdd, db: AsyncSession 
 
 @router.get("/projects/{project_id}/document-types")
 async def list_doc_types(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(DocumentType).where(DocumentType.project_id == project_id))
     return [_doctype_dict(dt) for dt in result.scalars().all()]
 
 
 @router.post("/projects/{project_id}/document-types", status_code=201)
 async def create_doc_type(project_id: str, data: DocTypeCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     dt = DocumentType(**data.model_dump(), project_id=project_id)
     db.add(dt)
     await db.commit()
@@ -362,7 +362,7 @@ async def create_doc_type(project_id: str, data: DocTypeCreate, db: AsyncSession
 
 @router.put("/projects/{project_id}/document-types/{dt_id}")
 async def update_doc_type(project_id: str, dt_id: str, data: DocTypeCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(DocumentType).where(DocumentType.id == dt_id, DocumentType.project_id == project_id))
     dt = result.scalar_one_or_none()
     if not dt:
@@ -376,7 +376,7 @@ async def update_doc_type(project_id: str, dt_id: str, data: DocTypeCreate, db: 
 
 @router.delete("/projects/{project_id}/document-types/{dt_id}", status_code=204)
 async def delete_doc_type(project_id: str, dt_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(DocumentType).where(DocumentType.id == dt_id, DocumentType.project_id == project_id))
     dt = result.scalar_one_or_none()
     if not dt:
@@ -389,14 +389,14 @@ async def delete_doc_type(project_id: str, dt_id: str, db: AsyncSession = Depend
 
 @router.get("/projects/{project_id}/workflow-states")
 async def list_workflow_states(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(WorkflowState).where(WorkflowState.project_id == project_id).order_by(WorkflowState.order))
     return [_state_dict(s) for s in result.scalars().all()]
 
 
 @router.post("/projects/{project_id}/workflow-states", status_code=201)
 async def create_workflow_state(project_id: str, data: WorkflowStateCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     s = WorkflowState(**data.model_dump(), project_id=project_id)
     db.add(s)
     await db.commit()
@@ -406,7 +406,7 @@ async def create_workflow_state(project_id: str, data: WorkflowStateCreate, db: 
 
 @router.put("/projects/{project_id}/workflow-states/{state_id}")
 async def update_workflow_state(project_id: str, state_id: str, data: WorkflowStateCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(WorkflowState).where(WorkflowState.id == state_id, WorkflowState.project_id == project_id))
     s = result.scalar_one_or_none()
     if not s:
@@ -420,7 +420,7 @@ async def update_workflow_state(project_id: str, state_id: str, data: WorkflowSt
 
 @router.delete("/projects/{project_id}/workflow-states/{state_id}", status_code=204)
 async def delete_workflow_state(project_id: str, state_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(WorkflowState).where(WorkflowState.id == state_id, WorkflowState.project_id == project_id))
     s = result.scalar_one_or_none()
     if not s:
@@ -433,14 +433,14 @@ async def delete_workflow_state(project_id: str, state_id: str, db: AsyncSession
 
 @router.get("/projects/{project_id}/workflow-transitions")
 async def list_workflow_transitions(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(WorkflowTransition).where(WorkflowTransition.project_id == project_id))
     return [_transition_dict(t) for t in result.scalars().all()]
 
 
 @router.post("/projects/{project_id}/workflow-transitions", status_code=201)
 async def create_workflow_transition(project_id: str, data: WorkflowTransitionCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     t = WorkflowTransition(**data.model_dump(), project_id=project_id)
     db.add(t)
     await db.commit()
@@ -450,7 +450,7 @@ async def create_workflow_transition(project_id: str, data: WorkflowTransitionCr
 
 @router.put("/projects/{project_id}/workflow-transitions/{trans_id}")
 async def update_workflow_transition(project_id: str, trans_id: str, data: WorkflowTransitionCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(WorkflowTransition).where(WorkflowTransition.id == trans_id, WorkflowTransition.project_id == project_id))
     t = result.scalar_one_or_none()
     if not t:
@@ -464,7 +464,7 @@ async def update_workflow_transition(project_id: str, trans_id: str, data: Workf
 
 @router.delete("/projects/{project_id}/workflow-transitions/{trans_id}", status_code=204)
 async def delete_workflow_transition(project_id: str, trans_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(WorkflowTransition).where(WorkflowTransition.id == trans_id, WorkflowTransition.project_id == project_id))
     t = result.scalar_one_or_none()
     if not t:
@@ -477,7 +477,7 @@ async def delete_workflow_transition(project_id: str, trans_id: str, db: AsyncSe
 
 @router.get("/projects/{project_id}/id-rule")
 async def get_id_rule(project_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(DocIdRule).where(DocIdRule.project_id == project_id))
     rule = result.scalar_one_or_none()
     if not rule:
@@ -487,7 +487,7 @@ async def get_id_rule(project_id: str, db: AsyncSession = Depends(get_db), curre
 
 @router.post("/projects/{project_id}/id-rule")
 async def upsert_id_rule(project_id: str, data: DocIdRuleCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await _check_project_member(project_id, current_user.id, db)
+    await _check_project_member(project_id, current_user.id, db, current_user)
     result = await db.execute(select(DocIdRule).where(DocIdRule.project_id == project_id))
     rule = result.scalar_one_or_none()
     if rule:
@@ -519,20 +519,26 @@ async def _get_project_or_404(project_id: str, db: AsyncSession):
     return project
 
 
-async def _check_org_member(org_id: str, user_id: str, db: AsyncSession):
+async def _check_org_member(org_id: str, user_id: str, db: AsyncSession, user=None):
+    if user and user.is_superadmin:
+        return
     result = await db.execute(select(OrgMember).where(OrgMember.org_id == org_id, OrgMember.user_id == user_id))
     if not result.scalar_one_or_none():
         raise HTTPException(403, "Not a member of this organization")
 
 
-async def _check_org_admin(org_id: str, user_id: str, db: AsyncSession):
+async def _check_org_admin(org_id: str, user_id: str, db: AsyncSession, user=None):
+    if user and user.is_superadmin:
+        return
     result = await db.execute(select(OrgMember).where(OrgMember.org_id == org_id, OrgMember.user_id == user_id))
     member = result.scalar_one_or_none()
     if not member or member.role not in ("admin", "manager"):
         raise HTTPException(403, "Admin access required")
 
 
-async def _check_project_member(project_id: str, user_id: str, db: AsyncSession):
+async def _check_project_member(project_id: str, user_id: str, db: AsyncSession, user=None):
+    if user and user.is_superadmin:
+        return
     result = await db.execute(select(ProjectMember).where(ProjectMember.project_id == project_id, ProjectMember.user_id == user_id))
     if not result.scalar_one_or_none():
         raise HTTPException(403, "Not a member of this project")
