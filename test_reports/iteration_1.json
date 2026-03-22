@@ -1,0 +1,58 @@
+{
+  "summary": "Full e2e testing of NumDocMan app (backend + frontend). 28/30 backend tests passed. All major UI flows verified. One bug found and fixed in DocumentsPage.jsx (empty doc_type_id causing FK violation).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/stats", "issue": "Endpoint does not exist (404) - AdminPage frontend may not call this, but the endpoint is missing from admin router"},
+      {"endpoint": "/api/storage-configs", "issue": "Wrong URL in test - actual endpoint is /api/storage?org_id=<id> (requires org_id query param)"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "DocumentsPage - Create Document modal",
+        "issue": "doc_type_id was sent as empty string '' instead of null when no type selected, causing FK violation (IntegrityError). FIXED: Added '|| null' conversion in handleCreate.",
+        "selector": "handleCreate at line 84 in DocumentsPage.jsx",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Create document with type selection",
+        "issue": "The doc_type_id and phase selects in the create document modal do not have data-testid attributes, making automated testing difficult",
+        "affected_selectors": ["select (doc type inside modal)", "select (phase inside modal)"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Dashboard",
+        "issues": ["KPI cards render correctly with all 3 KPIs (Total Documents, Total Projects, Signatures) - no design issues observed"]
+      },
+      {
+        "screen": "Sidebar language switch",
+        "issues": ["Logout button text changes with language (shows Déconnexion in FR) - correct behavior but FR users won't find 'Logout' text"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_numdocman.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add data-testid attributes to doc_type_id and phase selects in Create Document modal in DocumentsPage.jsx for better testability",
+    "Consider adding /api/admin/stats endpoint if admin dashboard stats are needed",
+    "The fix for doc_type_id empty string → null is applied in DocumentsPage.jsx line 84"
+  ],
+  "critical_code_review_comments": [
+    "DocumentsPage.jsx: Fixed - doc_type_id sent as '' (empty string) instead of null when no type selected causing PostgreSQL FK violation",
+    "projects.py _check_org_member: Superadmin is NOT bypassed in org member check - if a superadmin is not a member of org, they get 403 on /api/organizations/{org_id}. However list_orgs returns all orgs for superadmin. Inconsistency.",
+    "projects.py _check_project_member: Same issue - superadmin must be added as project member to access project details. But list_projects works for superadmin. Inconsistency that could cause 403 for superadmin accessing specific project."
+  ],
+  "updated_files": ["/app/frontend/src/pages/DocumentsPage.jsx"],
+  "success_rate": {"backend": "93% (28/30)", "frontend": "95%"},
+  "seed_data_creation": "Created TEST_Organization Alpha (TESTALPHA), TEST_UI Project (UIPROJ) with phases DES/DEV/TEST, document type Plan/PLA, document RCG_UIPROJ_DES_DOC_00001. All cleaned up via pytest cleanup tests except UI test data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests in /app/backend/tests/test_numdocman.py. App uses JWT auth (admin@numdocman.com / Admin123!). PostgreSQL DB. All major flows tested: login, org/project CRUD, document lifecycle, workflow transitions, signatures, history, admin, settings. One bug fixed: empty doc_type_id causing FK violation. Superadmin bypass inconsistency in project/org member checks may cause 403 for specific GET operations even for superadmin.",
+  "rca_of_issue": "The document create FK violation: In DocumentsPage.jsx createForm state initializes doc_type_id as empty string ''. When submitted without selecting a type, the API receives doc_type_id='' which PostgreSQL tries to use as FK reference to document_types table, causing IntegrityError. Fix: send null instead of empty string."
+}
