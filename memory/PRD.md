@@ -62,7 +62,7 @@
 - `GET/POST/PUT/DELETE /api/projects/{id}/workflow-states` - États workflow
 - `GET/POST/PUT/DELETE /api/projects/{id}/workflow-transitions` - Transitions
 - `GET/POST /api/projects/{id}/id-rule` - Règles d'identification
-- `GET/POST/PUT/DELETE /api/documents` - CRUD documents
+- `GET/POST/PUT/DELETE /api/documents` - CRUD documents avec **pagination** (page + per_page)
 - `POST /api/documents/{id}/upload` - Upload fichier
 - `GET /api/documents/{id}/download` - Téléchargement
 - `POST /api/documents/{id}/transition` - Transition workflow
@@ -104,7 +104,8 @@
 - [ ] Tests d'intégration complets pour les transitions de workflow
 
 ### P1 - High Priority Features
-- [ ] Visionneuse PDF intégrée (react-pdf)
+- [x] **Visionneuse PDF intégrée** (react-pdf v10) - toolbar zoom/navigation, sidebar métadonnées+signatures
+- [x] **Pagination des documents** - 20/page, navigation pages, compteur "X-Y sur Z résultats"
 - [ ] Invitations utilisateurs par email (SendGrid)
 - [ ] Export PDF des documents avec signatures
 - [ ] Pagination des listes de documents
