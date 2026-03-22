@@ -68,6 +68,8 @@ async def list_documents(
     doc_type_id: Optional[str] = Query(None),
     state_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -83,15 +85,30 @@ async def list_documents(
         q = q.where(Document.current_state_id == state_id)
     if search:
         q = q.where(Document.title.ilike(f"%{search}%"))
-    q = q.order_by(Document.created_at.desc())
+
+    # Count total
+    count_q = select(func.count()).select_from(q.subquery())
+    total_result = await db.execute(count_q)
+    total = total_result.scalar() or 0
+
+    # Paginate
+    q = q.order_by(Document.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(q)
     docs = result.scalars().all()
 
+    import math
     out = []
     for d in docs:
         doc_dict = await _enrich_doc(d, db)
         out.append(doc_dict)
-    return out
+
+    return {
+        "items": out,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": math.ceil(total / per_page) if total > 0 else 1,
+    }
 
 
 @router.post("/documents", status_code=201)

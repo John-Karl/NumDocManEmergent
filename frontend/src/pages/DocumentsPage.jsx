@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Plus, Upload, Download, FileText, Search, Filter, History, PenSquare, ChevronDown, X, Eye, Tag, Trash2 } from 'lucide-react';
+import { Plus, Upload, Download, FileText, Search, History, PenSquare, ChevronDown, Eye, Tag, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import Layout from '../components/Layout';
 import SignatureModal from '../components/SignatureModal';
+import PDFViewerModal from '../components/PDFViewerModal';
 import api from '../api/api';
 
 export default function DocumentsPage() {
@@ -18,12 +19,17 @@ export default function DocumentsPage() {
   const [selectedProject, setSelectedProject] = useState('');
   const [filters, setFilters] = useState({ state_id: '', doc_type_id: '', search: '' });
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, pages: 1, per_page: 20 });
+
   // Modals
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState(null);
   const [showTransition, setShowTransition] = useState(null);
   const [showSignature, setShowSignature] = useState(null);
   const [showHistory, setShowHistory] = useState(null);
+  const [showViewer, setShowViewer] = useState(null);
 
   // Forms
   const [createForm, setCreateForm] = useState({ title: '', doc_type_id: '', phase: '', description: '', tags: [] });
@@ -66,17 +72,21 @@ export default function DocumentsPage() {
     if (!selectedProject) { setLoading(false); return; }
     setLoading(true);
     try {
-      const params = { project_id: selectedProject };
+      const params = { project_id: selectedProject, page: currentPage, per_page: 20 };
       if (filters.state_id) params.state_id = filters.state_id;
       if (filters.doc_type_id) params.doc_type_id = filters.doc_type_id;
       if (filters.search) params.search = filters.search;
       const res = await api.get('/documents', { params });
-      setDocuments(res.data);
+      setDocuments(res.data.items);
+      setPagination({ total: res.data.total, pages: res.data.pages, per_page: res.data.per_page });
     } catch { toast.error(t('errors.server_error')); }
     finally { setLoading(false); }
-  }, [selectedProject, filters, t]);
+  }, [selectedProject, filters, currentPage, t]);
 
-  useEffect(() => { if (selectedProject) loadDocs(); }, [selectedProject, filters]);
+  useEffect(() => { if (selectedProject) loadDocs(); }, [selectedProject, filters, currentPage]);
+
+  // Reset page when filters or project change
+  useEffect(() => { setCurrentPage(1); }, [selectedProject, filters]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -259,6 +269,17 @@ export default function DocumentsPage() {
                       </td>
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {doc.has_file && (
+                            <button
+                              data-testid={`view-btn-${doc.id}`}
+                              onClick={() => setShowViewer(doc)}
+                              title={t('view')}
+                              className="p-1.5 rounded hover:bg-[#2E60CC]/10 text-[#868E96] hover:text-[#2E60CC]"
+                              style={{ transition: 'background-color 150ms ease, color 150ms ease' }}
+                            >
+                              <Eye size={14} />
+                            </button>
+                          )}
                           <button data-testid={`transition-btn-${doc.id}`} onClick={() => openTransition(doc)} title={t('document.transition')} className="p-1.5 rounded hover:bg-[#F1F3F5] text-[#868E96]" style={{ transition: 'background-color 150ms ease' }}>
                             <ChevronDown size={14} />
                           </button>
@@ -282,6 +303,63 @@ export default function DocumentsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && pagination.total > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+            <p className="text-xs text-[#868E96] font-ibm">
+              {((currentPage - 1) * pagination.per_page) + 1}–{Math.min(currentPage * pagination.per_page, pagination.total)} sur {pagination.total} résultat{pagination.total > 1 ? 's' : ''}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                data-testid="pagination-prev"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded border border-[#E2E8F0] text-[#495057] hover:bg-[#F1F3F5] disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ transition: 'background-color 150ms ease' }}
+              >
+                <ChevronLeft size={14} />
+              </button>
+
+              {Array.from({ length: pagination.pages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === pagination.pages || Math.abs(p - currentPage) <= 1)
+                .reduce((acc, p, idx, arr) => {
+                  if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) =>
+                  item === '...' ? (
+                    <span key={`ellipsis-${idx}`} className="px-2 text-[#868E96] text-xs font-ibm">…</span>
+                  ) : (
+                    <button
+                      key={item}
+                      data-testid={`pagination-page-${item}`}
+                      onClick={() => setCurrentPage(item)}
+                      className={`w-8 h-8 text-xs rounded border font-ibm transition-colors duration-150 ${
+                        currentPage === item
+                          ? 'bg-[#2E60CC] text-white border-[#2E60CC]'
+                          : 'bg-white text-[#495057] border-[#E2E8F0] hover:bg-[#F1F3F5]'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )
+              }
+
+              <button
+                data-testid="pagination-next"
+                onClick={() => setCurrentPage(p => Math.min(pagination.pages, p + 1))}
+                disabled={currentPage === pagination.pages}
+                className="p-1.5 rounded border border-[#E2E8F0] text-[#495057] hover:bg-[#F1F3F5] disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ transition: 'background-color 150ms ease' }}
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -441,6 +519,15 @@ export default function DocumentsPage() {
           documentId={showSignature.id}
           onClose={() => setShowSignature(null)}
           onSigned={loadDocs}
+        />
+      )}
+
+      {/* PDF Viewer Modal */}
+      {showViewer && (
+        <PDFViewerModal
+          doc={showViewer}
+          onClose={() => setShowViewer(null)}
+          onSign={(doc) => { setShowViewer(null); setShowSignature(doc); }}
         />
       )}
     </Layout>
